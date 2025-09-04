@@ -8,6 +8,7 @@ dataset:
       out_size: 512
       crop_type: "center"
       use_hflip: False
+      bits: 3
   val:
     target: dataset.spc_image_only.SPCDataset
     params:
@@ -17,6 +18,7 @@ dataset:
       out_size: 512
       crop_type: "center"
       use_hflip: False
+      bits: 3
 
 
 batch_transform:
