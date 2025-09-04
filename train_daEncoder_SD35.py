@@ -22,7 +22,7 @@ import lpips
 # import numpy as np
 #################################
 
-from utils.common import instantiate_from_config, calculate_psnr_pt, to
+from core.utils.common import instantiate_from_config, calculate_psnr_pt, to
 
 
 def compute_loss(gt, z_gt, z_pred, xhat_gt, xhat_lq, lpips_model, loss_mode, scales):
@@ -68,7 +68,7 @@ def process_out(latent):
 #################################################################
 # VAE
 #################################################################
-from vae import SDVAE
+from core.model.vae import SDVAE
 
 CONFIGS = {
     "sd3_medium": {
@@ -140,7 +140,7 @@ def main(args) -> None:
     # Make the encoder & quant_conv trainable and rest frozen
     for name, p in vae.named_parameters():
         p.requires_grad = True if "encoder" in name else False
-        print(f"{name} -> {p.shape} isTrainable? {p.requires_grad}")
+        # print(f"{name} -> {p.shape} isTrainable? {p.requires_grad}")
 
     # Setup optimizer:
     opt = torch.optim.AdamW(
