@@ -25,7 +25,6 @@ import lpips
 from utils.common import instantiate_from_config, calculate_psnr_pt, to
 
 
-
 def compute_loss(gt, z_gt, z_pred, xhat_gt, xhat_lq, lpips_model, loss_mode, scales):
     #  "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
     mse_loss = 0.
@@ -141,13 +140,11 @@ def main(args) -> None:
     # Make the encoder & quant_conv trainable and rest frozen
     for name, p in vae.named_parameters():
         p.requires_grad = True if "encoder" in name else False
-        if ("conv_out" in name or "conv_norm_out" in name or "conv_act" in name) and not "post" in name:
-            p.requires_grad = True 
         print(f"{name} -> {p.shape} isTrainable? {p.requires_grad}")
 
     # Setup optimizer:
     opt = torch.optim.AdamW(
-        list(vae.encoder.parameters()) + list(vae.conv_out.parameters()) + list(vae.conv_norm_out.parameters()) + list(vae.conv_act.parameters()), 
+        list(vae.encoder.parameters()), 
         lr=cfg.train.learning_rate, 
         weight_decay=0)
 
