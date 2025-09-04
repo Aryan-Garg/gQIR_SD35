@@ -40,7 +40,7 @@ train:
   # Loss params
   loss_mode: "ls_gt_perceptual" # "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
   loss_scales:
-    lsa: 0.1
+    lsa: 5
     mse: 0.
     gt: 1.
     perceptual_gt: 50.

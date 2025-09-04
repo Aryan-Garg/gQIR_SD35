@@ -335,7 +335,7 @@ def main(args) -> None:
                     writer.add_scalar("train/perceptual_loss_step", avg_perceptual_loss, global_step)
 
             # Save checkpoint:
-            if global_step % cfg.train.ckpt_every == 0:
+            if global_step % cfg.train.ckpt_every == 0 or global_step == 1:
                 if accelerator.is_local_main_process:
                     checkpoint = vae.state_dict()
                     ckpt_path = f"{ckpt_dir}/{global_step:07d}.pt"
@@ -351,17 +351,17 @@ def main(args) -> None:
                     log_pred_gt = vae.decode(vae.encode(log_gt))
                 if accelerator.is_local_main_process:
                     for tag, image in [
-                        ("image/pred_gt", log_pred_gt),
-                        ("image/pred", log_pred),
-                        ("image/gt", log_gt),
-                        ("image/lq", log_lq),
+                        ("image/pred_gt",( log_pred_gt + 1 )/ 2),
+                        ("image/pred", (log_pred + 1) / 2),
+                        ("image/gt", (log_gt + 1) / 2),
+                        ("image/lq", (log_lq + 1) / 2),
                     ]:
                         writer.add_image(tag, make_grid(image, nrow=4), global_step)
                 vae.encoder.train()
 
 
             # Evaluate model:
-            if global_step % cfg.train.val_every == 0:
+            if global_step % cfg.train.val_every == 0 or global_step == 1:
                 vae.encoder.eval() 
 
                 val_loss = []
