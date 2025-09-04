@@ -34,7 +34,8 @@ class SPCDataset(data.Dataset):
                     file_backend_cfg: Mapping[str, Any],
                     out_size: int,
                     crop_type: str,
-                    use_hflip: bool) -> "SPCDataset":
+                    use_hflip: bool,
+                    bits=3) -> "SPCDataset":
 
         super(SPCDataset, self).__init__()
         self.file_list = file_list
@@ -45,6 +46,7 @@ class SPCDataset(data.Dataset):
         self.use_hflip = use_hflip # No need for 1.5M big dataset
         assert self.crop_type in ["none", "center", "random"]
         self.HARDDISK_DIR = "/mnt/disks/behemoth/datasets/"
+        self.bits = bits
 
 
     def load_gt_image(
@@ -137,9 +139,8 @@ class SPCDataset(data.Dataset):
 
 
             img_lq_sum = np.zeros_like(img_gt, dtype=np.float32)
-            bits = random.randint(1, 10) # mixed bit depth training
             # NOTE: No motion-blur. Assumes SPC-fps >>> scene motion
-            N = 2**bits - 1
+            N = 2**self.bits - 1
             for i in range(N): # 4-bit (2**4 - 1)
                 img_lq_sum = img_lq_sum + self.generate_spc_from_gt(img_gt, N=N)
             img_lq = img_lq_sum / (1.0*N)
