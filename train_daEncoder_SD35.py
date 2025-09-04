@@ -177,11 +177,6 @@ def main(args) -> None:
     )
     vae = accelerator.unwrap_model(vae)
 
-    for name, p in vae.named_parameters():
-        print(f"{name} -> {p.shape} isTrainable? {p.requires_grad}")
-    # print("Printed after accelerator prepares")
-    # exit()
-
     # Variables for monitoring/logging purposes:
     global_step = 0
     max_steps = cfg.train.train_steps
@@ -300,9 +295,6 @@ def main(args) -> None:
             # Log images
             if global_step % cfg.train.image_every == 0 or global_step == 1:
                 vae.encoder.eval()
-                vae.conv_out.eval()
-                vae.conv_norm_out.eval()
-                vae.conv_act.eval()
                 N = 12
                 log_gt, log_lq = gt[:N], lq[:N]
                 with torch.no_grad():
@@ -317,16 +309,11 @@ def main(args) -> None:
                     ]:
                         writer.add_image(tag, make_grid(image, nrow=4), global_step)
                 vae.encoder.train()
-                vae.conv_out.train()
-                vae.conv_norm_out.train()
-                vae.conv_act.train()
+
 
             # Evaluate model:
             if global_step % cfg.train.val_every == 0:
                 vae.encoder.eval() 
-                vae.conv_out.eval()
-                vae.conv_norm_out.eval()
-                vae.conv_act.eval()
 
                 val_loss = []
                 val_lpips_loss = []
@@ -399,9 +386,6 @@ def main(args) -> None:
                     ]:
                         writer.add_scalar(tag, val, global_step)
                 vae.encoder.train()
-                vae.conv_out.train()
-                vae.conv_norm_out.train()
-                vae.conv_act.train()
 
             accelerator.wait_for_everyone()
 
