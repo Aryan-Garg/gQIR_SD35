@@ -1,20 +1,20 @@
 dataset:
   train:
-    target: dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_only.SPCDataset
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
       file_backend_cfg:
-        target: gqvr.dataset.file_backend.HardDiskBackend
+        target: core.dataset.file_backend.HardDiskBackend
       out_size: 512
       crop_type: "center"
       use_hflip: False
       bits: 3
   val:
-    target: dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_only.SPCDataset
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
       file_backend_cfg:
-        target: gqvr.dataset.file_backend.HardDiskBackend
+        target: core.dataset.file_backend.HardDiskBackend
       out_size: 512
       crop_type: "center"
       use_hflip: False
@@ -22,7 +22,7 @@ dataset:
 
 
 batch_transform:
-  target: gqvr.dataset.batch_transform.IdentityBatchTransform
+  target: core.dataset.batch_transform.IdentityBatchTransform
   # params:
 
 train:
