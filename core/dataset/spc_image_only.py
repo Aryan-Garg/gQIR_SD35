@@ -47,6 +47,7 @@ class SPCDataset(data.Dataset):
         assert self.crop_type in ["none", "center", "random"]
         self.HARDDISK_DIR = "/mnt/disks/behemoth/datasets/"
         self.bits = bits
+        print(f"[+] Sim bits = {self.bits}")
 
 
     def load_gt_image(
@@ -141,8 +142,8 @@ class SPCDataset(data.Dataset):
             img_lq_sum = np.zeros_like(img_gt, dtype=np.float32)
             # NOTE: No motion-blur. Assumes SPC-fps >>> scene motion
             N = 2**self.bits - 1
-            for i in range(N): # 4-bit (2**4 - 1)
-                img_lq_sum = img_lq_sum + self.generate_spc_from_gt(img_gt, N=N)
+            for i in range(N): # 3-bit (2**3 - 1)
+                img_lq_sum = img_lq_sum + self.generate_spc_from_gt(img_gt)
             img_lq = img_lq_sum / (1.0*N)
 
 

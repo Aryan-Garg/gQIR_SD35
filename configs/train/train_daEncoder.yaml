@@ -27,11 +27,12 @@ batch_transform:
 
 train:
   # experiment directory path
+  sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
   exp_dir: /home/argar/apgi/gqvr_sd35/experiments
   learning_rate: 1e-5
   batch_size: 1
   num_workers: 96
-  train_steps: 3_000_000
+  train_steps: 10_000_000
   log_every: 1000
   ckpt_every: 50000
   image_every: 5000
@@ -39,7 +40,7 @@ train:
   # Loss params
   loss_mode: "ls_gt_perceptual" # "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
   loss_scales:
-    lsa: 0.01
+    lsa: 0.1
     mse: 0.
     gt: 1.
     perceptual_gt: 50.

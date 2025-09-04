@@ -6,3 +6,5 @@ experiments/**
 *.pth
 *.safetensors
 *__pycache__*
+pretrained_ckpt/**
+

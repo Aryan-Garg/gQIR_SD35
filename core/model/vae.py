@@ -369,7 +369,10 @@ class SDVAE(torch.nn.Module):
     @torch.autocast("cuda", dtype=torch.float16)
     def encode(self, image):
         hidden = self.encoder(image)
-        mean, logvar = torch.chunk(hidden, 2, dim=1)
-        logvar = torch.clamp(logvar, -30.0, 20.0)
-        std = torch.exp(0.5 * logvar)
-        return mean + std * torch.randn_like(mean)
+        mean, _ = torch.chunk(hidden, 2, dim=1)
+        
+        # NOTE: Now we return mode!
+
+        # logvar = torch.clamp(logvar, -30.0, 20.0)
+        # std = torch.exp(0.5 * logvar)
+        return mean

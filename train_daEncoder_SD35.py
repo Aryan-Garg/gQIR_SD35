@@ -14,8 +14,9 @@ from accelerate.utils import set_seed
 from einops import rearrange
 from tqdm import tqdm
 import diffusers
-from diffusers import AutoencoderKL
+from diffusers import AutoencoderKL, StableDiffusion3Pipeline
 import lpips
+from safetensors import safe_open
 
 # Debugging libs: ###############
 # import matplotlib.pyplot as plt
@@ -24,6 +25,7 @@ import lpips
 
 from core.utils.common import instantiate_from_config, calculate_psnr_pt, to
 
+import matplotlib.pyplot as plt
 
 def compute_loss(gt, z_gt, z_pred, xhat_gt, xhat_lq, lpips_model, loss_mode, scales):
     #  "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
@@ -33,13 +35,13 @@ def compute_loss(gt, z_gt, z_pred, xhat_gt, xhat_lq, lpips_model, loss_mode, sca
     perceptual_loss = 0.
     loss_dict = {"mse": mse_loss, "lsa": ls_loss, "perceptual": perceptual_loss, "gt_loss": gt_loss}
     if "ls" in loss_mode:
-        ls_loss = scales.lsa * F.mse_loss(z_pred, z_gt, reduction="sum")
+        ls_loss = scales.lsa * F.mse_loss(z_pred, z_gt, reduction="mean")
         loss_dict["lsa"] = ls_loss.item()
         if "mse" in loss_mode:
-            mse_loss = scales.mse * F.mse_loss(xhat_lq, xhat_gt, reduction="sum")
+            mse_loss = scales.mse * F.mse_loss(xhat_lq, xhat_gt, reduction="mean")
             loss_dict["mse"] = mse_loss.item()
         elif "gt" in loss_mode:
-            gt_loss = scales.gt * F.l1_loss(xhat_gt, gt, reduction="sum")
+            gt_loss = scales.gt * F.l1_loss(xhat_gt, gt, reduction="mean")
             loss_dict["gt_loss"] = gt_loss.item()
         if "perceptual" in loss_mode:
             perceptual_loss = (scales.perceptual_gt * lpips_model(xhat_gt, gt)) + \
@@ -70,6 +72,42 @@ def process_out(latent):
 #################################################################
 from core.model.vae import SDVAE
 
+def load_into(ckpt, model, prefix, device, dtype=None, remap=None):
+    """Just a debugging-friendly hack to apply the weights in a safetensors file to the pytorch module."""
+    for key in ckpt.keys():
+        model_key = key
+        if remap is not None and key in remap:
+            model_key = remap[key]
+        if model_key.startswith(prefix) and not model_key.startswith("loss."):
+            path = model_key[len(prefix) :].split(".")
+            obj = model
+            for p in path:
+                if obj is list:
+                    obj = obj[int(p)]
+                else:
+                    obj = getattr(obj, p, None)
+                    if obj is None:
+                        print(
+                            f"Skipping key '{model_key}' in safetensors file as '{p}' does not exist in python model"
+                        )
+                        break
+            if obj is None:
+                continue
+            try:
+                tensor = ckpt.get_tensor(key).to(device=device)
+                if dtype is not None and tensor.dtype != torch.int32:
+                    tensor = tensor.to(dtype=dtype)
+                obj.requires_grad_(False)
+                # print(f"K: {model_key}, O: {obj.shape} T: {tensor.shape}")
+                if obj.shape != tensor.shape:
+                    print(
+                        f"W: shape mismatch for key {model_key}, {obj.shape} != {tensor.shape}"
+                    )
+                obj.set_(tensor)
+            except Exception as e:
+                print(f"Failed to load key '{key}' in safetensors file: {e}")
+                raise e
+            
 CONFIGS = {
     "sd3_medium": {
         "shift": 1.0,
@@ -135,7 +173,14 @@ def main(args) -> None:
 
 
     # Create & load VAE from pretrained SD 3.5 model:
-    vae = SDVAE(device="cpu", dtype=torch.float32).cpu()
+    MODEL = "/home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors" 
+    with safe_open(MODEL, framework="pt", device="cpu") as f:
+        vae = SDVAE(device="cpu", dtype=torch.float32)
+        prefix = ""
+        if any(k.startswith("first_stage_model.") for k in f.keys()):
+            prefix = "first_stage_model."
+        load_into(f, vae, prefix, "cpu", torch.float32)
+
 
     # Make the encoder & quant_conv trainable and rest frozen
     for name, p in vae.named_parameters():
@@ -172,10 +217,10 @@ def main(args) -> None:
 
     # Prepare models for training/inference:
     vae.to(device)
-    vae, opt, loader, val_loader = accelerator.prepare(
-        vae, opt, loader, val_loader
+    vae.encoder, opt, loader, val_loader = accelerator.prepare(
+        vae.encoder, opt, loader, val_loader
     )
-    vae = accelerator.unwrap_model(vae)
+    vae.encoder = accelerator.unwrap_model(vae.encoder)
 
     # Variables for monitoring/logging purposes:
     global_step = 0
@@ -215,14 +260,16 @@ def main(args) -> None:
             batch = batch_transform(batch)
             gt, lq, prompt, gt_path = batch
             
-            gt = rearrange((gt + 1) / 2, "b h w c -> b c h w").contiguous().float()
+            gt = rearrange(gt, "b h w c -> b c h w").contiguous().float()
             lq = rearrange(lq, "b h w c -> b c h w").contiguous().float()
 
             # Train step:
             gt_latent = vae.encode(gt)
             pred_latent = vae.encode(lq)
+            # print("[+] gt latent.shape:", gt_latent.size())
             xhat_lq = vae.decode(pred_latent)
             xhat_gt = vae.decode(gt_latent)
+            # print("[+] gt reconstructed:", xhat_gt.size(), xhat_gt.max(), xhat_gt.min())
 
             loss, loss_dict = compute_loss(gt, gt_latent, pred_latent, xhat_gt, xhat_lq, 
                                            lpips_model, cfg.train.loss_mode, cfg.train.loss_scales)
@@ -231,7 +278,9 @@ def main(args) -> None:
             accelerator.backward(loss)
             opt.step()
             accelerator.wait_for_everyone()
-
+            # plt.imsave("gt_recon.png", xhat_gt.squeeze().permute(1,2,0).detach().cpu().float().clamp(0,1).numpy())
+            # plt.imsave("lq_recon.png", xhat_lq.squeeze().permute(1,2,0).detach().cpu().float().clamp(0,1).numpy())
+          
             global_step += 1
             step_loss.append(loss_dict["mse"])
             step_ls_loss.append(loss_dict["lsa"])
@@ -331,7 +380,7 @@ def main(args) -> None:
                     val_batch = batch_transform(val_batch)
                     val_gt, val_lq, val_prompt, val_gt_path = val_batch
                     val_gt = (
-                        rearrange((val_gt + 1) / 2, "b h w c -> b c h w")
+                        rearrange(val_gt, "b h w c -> b c h w")
                         .contiguous()
                         .float()
                     )
