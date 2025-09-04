@@ -30,7 +30,7 @@ train:
   sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
   exp_dir: /home/argar/apgi/gqvr_sd35/experiments
   learning_rate: 1e-5
-  batch_size: 1
+  batch_size: 16
   num_workers: 96
   train_steps: 10_000_000
   log_every: 1000
