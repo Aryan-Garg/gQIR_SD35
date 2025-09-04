@@ -1,0 +1,44 @@
+dataset:
+  train:
+    target: dataset.spc_image_only.SPCDataset
+    params:
+      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
+      file_backend_cfg:
+        target: gqvr.dataset.file_backend.HardDiskBackend
+      out_size: 512
+      crop_type: "center"
+      use_hflip: False
+  val:
+    target: dataset.spc_image_only.SPCDataset
+    params:
+      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
+      file_backend_cfg:
+        target: gqvr.dataset.file_backend.HardDiskBackend
+      out_size: 512
+      crop_type: "center"
+      use_hflip: False
+
+
+batch_transform:
+  target: gqvr.dataset.batch_transform.IdentityBatchTransform
+  # params:
+
+train:
+  # experiment directory path
+  exp_dir: /home/argar/apgi/gqvr_sd35/experiments
+  learning_rate: 1e-5
+  batch_size: 1
+  num_workers: 96
+  train_steps: 3_000_000
+  log_every: 1000
+  ckpt_every: 50000
+  image_every: 5000
+  val_every: 5000
+  # Loss params
+  loss_mode: "ls_gt_perceptual" # "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
+  loss_scales:
+    lsa: 0.01
+    mse: 0.
+    gt: 1.
+    perceptual_gt: 50.
+    perceptual_lq: 50.
