@@ -5,4 +5,4 @@ experiments/**
 *.jpeg
 *.pth
 *.safetensors
-__pycache__/**
+*__pycache__*
