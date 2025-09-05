@@ -28,9 +28,9 @@ batch_transform:
 train:
   # experiment directory path
   sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
-  exp_dir: /home/argar/apgi/gqvr_sd35/experiments
+  exp_dir: /home/argar/apgi/gqvr_sd35/experiments/mosaic_3bit
   learning_rate: 1e-5
-  batch_size: 16
+  batch_size: 2
   num_workers: 96
   train_steps: 1_000_000
   log_every: 1000

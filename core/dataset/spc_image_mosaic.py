@@ -60,13 +60,42 @@ class SPCDataset_Mosaic(data.Dataset):
 
         bayer = np.zeros_like(img)
 
-        # Red
-        bayer[0::2, 0::2, 0] = R[0::2, 0::2]
-        # Green
-        bayer[0::2, 1::2, 1] = G[0::2, 1::2]
-        bayer[1::2, 0::2, 1] = G[1::2, 0::2]
-        # Blue
-        bayer[1::2, 1::2, 2] = B[1::2, 1::2]
+        bayer_pattern_type = random.choice(["RGGB", "GRBG", "BGGR", "GBRG"])
+
+        if bayer_pattern_type == "RGGB":
+            # Red
+            bayer[0::2, 0::2, 0] = R[0::2, 0::2]
+            # Green
+            bayer[0::2, 1::2, 1] = G[0::2, 1::2]
+            bayer[1::2, 0::2, 1] = G[1::2, 0::2]
+            # Blue
+            bayer[1::2, 1::2, 2] = B[1::2, 1::2]
+        elif bayer_pattern_type == "GRBG":
+            # Red
+            bayer[0::2, 1::2, 0] = R[0::2, 1::2]
+            # Green 
+            bayer[0::2, 0::2, 1] = G[0::2, 0::2]
+            bayer[1::2, 1::2, 1] = G[1::2, 1::2]
+            # Blue
+            bayer[1::2, 0::2, 2] = B[1::2, 0::2]
+            
+        elif bayer_pattern_type == "BGGR":
+            # Blue
+            bayer[0::2, 0::2, 2] = B[0::2, 0::2]
+            # Green
+            bayer[0::2, 1::2, 1] = G[0::2, 1::2]
+            bayer[1::2, 0::2, 1] = G[1::2, 0::2]
+            # Red
+            bayer[1::2, 1::2, 0] = R[1::2, 1::2]
+        
+        else: # GBRG
+            # Green
+            bayer[0::2, 0::2, 1] = G[0::2, 0::2]
+            bayer[1::2, 1::2, 1] = G[1::2, 1::2]
+            # Blue
+            bayer[0::2, 1::2, 2] = B[0::2, 1::2]
+            # Red
+            bayer[1::2, 0::2, 0] = R[1::2, 0::2]
 
         return bayer
 
