@@ -1,6 +1,6 @@
 dataset:
   train:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
       file_backend_cfg:
@@ -8,9 +8,9 @@ dataset:
       out_size: 512
       crop_type: "center"
       use_hflip: False
-      bits: 3
+      bits: 1
   val:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
       file_backend_cfg:
@@ -18,7 +18,7 @@ dataset:
       out_size: 512
       crop_type: "center"
       use_hflip: False
-      bits: 3
+      bits: 1
 
 
 batch_transform:

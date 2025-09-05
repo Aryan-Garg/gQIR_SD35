@@ -1,6 +1,6 @@
 dataset:
   train:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
       file_backend_cfg:
@@ -10,7 +10,7 @@ dataset:
       use_hflip: False
       bits: 3
   val:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
       file_backend_cfg:
