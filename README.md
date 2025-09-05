@@ -6,5 +6,5 @@
 
 **Mosaic versions:**
 
-> accelerate launch train_daEncoder_SD35.py --config configs/train/train_stage1_3-bit_mosaic.yaml
+> accelerate launch train_daEncoder_SD35.py --config configs/train/train_s1_mosaic_default_3bit.yaml
 > accelerate launch --main_process_port 29501 train_daEncoder_SD35.py --config configs/train/train_stage1_1-bit_mosaic.yaml
