@@ -1,6 +1,6 @@
 dataset:
   train:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
       file_backend_cfg:
@@ -10,7 +10,7 @@ dataset:
       use_hflip: False
       bits: 3
   val:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
       file_backend_cfg:
@@ -28,15 +28,13 @@ batch_transform:
 train:
   # experiment directory path
   sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
-  exp_dir: /home/argar/apgi/gqvr_sd35/experiments
+  exp_dir: /home/argar/apgi/gqvr_sd35/experiments/enhanced_3bit
 
   ##########################
   # TODO:
   ##########################
-  model_t: 200
-  coeff_t: 200
-  lora_rank: 256
-  lora_modules: [to_k, to_q, to_v, to_out.0, conv, conv1, conv2, conv_shortcut, conv_out, proj_in, proj_out, ff.net.2, ff.net.0.proj]
+  lora_rank: 768
+  lora_modules: ["x_embedder.proj", "context_block.attn.qkv", "context_block.attn.proj", "x_block.attn.qkv", "x_block.attn.proj", "ff.net.0.proj", "ff.net.2", "final_layer.linear"]
   ###########################
 
   learning_rate: 1e-5
