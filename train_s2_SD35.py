@@ -322,9 +322,11 @@ def main(args) -> None:
             prefix = "first_stage_model."
         load_into(f, vae, prefix, "cpu", torch.float32)
 
-
+    # Load qVAE from checkpoint:
+    vae_sd = torch.load(cfg.train.vae_path, map_location="cpu")
+    vae.load_state_dict(vae_sd, strict=True)
     # Freeze VAE
-    vae.requires_grad_(False)
+    vae.eval().requires_grad_(False)
 
     text_adapter = SD3Tokenizer()
     
