@@ -30,6 +30,7 @@ import re
 from core.utils.common import instantiate_from_config, calculate_psnr_pt, to
 from core.model.mmditx import MMDiTX
 from core.model.convnext import ImageConvNextDiscriminator
+from core.model.other_impls import SD3Tokenizer
 
 import matplotlib.pyplot as plt
 
@@ -268,9 +269,33 @@ class SD3:
     
 #################################################################
 
-def get_cond(prompt=""):
-    # Return a tensor representing an empty string tokenized (dummy conditional)
-    return torch.zeros((1, 4096)), torch.zeros((1, 1024))
+def prepare_sd35_inputs(pred_latent, prompts, text_adapter, model_sampling, device, weight_dtype, model_t=200):
+    """
+    Returns the exact kwargs your BaseModel.apply_model expects:
+      x:           latent in model input space (after process_in)
+      sigma:       [B] noise levels (mapped from model_t via model_sampling.sigma)
+      c_crossattn: context embeddings (text) [B, T, C]
+      y:           pooled text embedding [B, C]
+    """
+    B = pred_latent.size(0)
+
+    # 1) Text cond (context + pooled/ADM)
+    cond = text_adapter.encode(prompts)              # dict(context=[B,T,C], pooled=[B,C])
+
+    # 2) Encode image to latent, then into model’s input space
+    x = pred_latent.to(device, weight_dtype)                # SD3.5 LT is fp32 
+
+    # 3) Sigma schedule (discrete flow mapping)
+    # model_sampling.sigma expects a tensor timestep (1..1000) scaled inside; you already implemented it.
+    t = torch.full((B,), model_t, device=device, dtype=torch.float32)
+    sigma = model_sampling.sigma(t)                  # [B], float32 is fine
+
+    # 4) Shapes/dtypes ready for apply_model
+    c_crossattn = cond["context"]                    # [B, T, C_ctx], fp16
+    y           = cond["pooled"]                     # [B, C_adm],    fp16
+
+    return dict(x=x, sigma=sigma, c_crossattn=c_crossattn, y=y)
+
 
 def main(args) -> None:
     # Setup accelerator:
@@ -301,6 +326,9 @@ def main(args) -> None:
     # Freeze VAE
     vae.requires_grad_(False)
 
+    text_adapter = SD3Tokenizer()
+    
+    # LAtent Space DiT
     latent_transformer = SD3(MODEL)
     latent_transformer.eval().requires_grad_(False)
     # Add LoRA params to latent transformer
@@ -317,6 +345,7 @@ def main(args) -> None:
     assert lora_params, "Failed to find lora parameters"
     for p in lora_params:
         p.data = p.to(torch.float16)
+
     # Load Discriminator & make trainable
     D = ImageConvNextDiscriminator().to(device=accelerator.device)
     D.train().requires_grad_(True)
@@ -412,8 +441,24 @@ def main(args) -> None:
             pred_latent = vae.encode(lq)
             pred_latent = process_in(pred_latent)
             
+            inp = prepare_sd35_inputs(
+                    pred_latent=pred_latent,
+                    prompts=prompt,                                  # list[str], len B
+                    text_adapter=text_adapter,
+                    model_sampling=latent_transformer.model.model_sampling,
+                    device=accelerator.device,
+                    weight_dtype=torch.float16,
+                    model_t=200  # Same as HYPIR
+            )
             if generator_step:
-                enhanced_latent = process_out(latent_transformer(pred_latent.half()))
+                with torch.autocast(device_type=accelerator.device.type, dtype=torch.float16):
+                    denoised = latent_transformer.model.apply_model(
+                        x=inp["x"],
+                        sigma=inp["sigma"],
+                        c_crossattn=inp["c_crossattn"],
+                        y=inp["y"],
+                    )
+                enhanced_latent = process_out(denoised.float())
                 xhat_lq = vae.decode(enhanced_latent)
 
                 accelerator.unwrap_model(D).eval().requires_grad_(False)
@@ -431,7 +476,14 @@ def main(args) -> None:
                 generator_step -= 1
             else:  
                 with torch.no_grad():
-                    enhanced_latent = process_out(latent_transformer(pred_latent.half()))
+                    with torch.autocast(device_type=accelerator.device.type, dtype=torch.float16):
+                        denoised = latent_transformer.model.apply_model(
+                            x=inp["x"],
+                            sigma=inp["sigma"],
+                            c_crossattn=inp["c_crossattn"],
+                            y=inp["y"],
+                        )
+                    enhanced_latent = process_out(denoised.float())
                     xhat_lq = vae.decode(enhanced_latent)
 
                 accelerator.unwrap_model(D).train().requires_grad_(True)
