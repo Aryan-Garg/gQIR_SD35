@@ -425,7 +425,7 @@ def main(args) -> None:
             unit="batch",
             total=len(loader),
         )
-        generator_step = 0
+        generator_step = True # Alternate between G and D steps
         for batch in loader:
             to(batch, device)
             batch = batch_transform(batch)
@@ -469,7 +469,7 @@ def main(args) -> None:
             
                 # Log something
                 loss_dict = dict(G_total=loss_G, G_mse=loss_l2, G_lpips=loss_lpips, G_disc=loss_disc)
-                generator_step -= 1
+                generator_step = False
             else:  
                 with torch.no_grad():
                     with torch.autocast(device_type=accelerator.device.type, dtype=torch.float16):
@@ -500,7 +500,7 @@ def main(args) -> None:
 
                 loss_dict.update(dict(D_logits_real=real_logits, D_logits_fake=fake_logits))
 
-                generator_step += 1    
+                generator_step = True    
 
             global_step += 1
             pbar.update(1)
