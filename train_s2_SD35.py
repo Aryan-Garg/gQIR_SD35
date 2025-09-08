@@ -455,14 +455,15 @@ def main(args) -> None:
                         y=inp["y"],
                     )
                 enhanced_latent = process_out(denoised.float())
-                xhat_lq = vae.decode(enhanced_latent)
+                xhat_lq = vae.decode(enhanced_latent).clamp(-1, 1).float()
 
                 accelerator.unwrap_model(D).eval().requires_grad_(False)
-                loss_l2 = F.mse_loss(xhat_lq, gt.half(), reduction="mean") * cfg.train.loss_scales.lambda_l2
-                loss_lpips = lpips_model(xhat_lq.float(), gt.float()).mean() * cfg.train.loss_scales.lambda_lpips
-                loss_disc = D(xhat_lq.float(), for_G=True).mean() * cfg.train.loss_scales.lambda_gan
+                loss_l2 = F.mse_loss(xhat_lq, gt, reduction="mean") * cfg.train.loss_scales.lambda_l2
+                loss_lpips = lpips_model(xhat_lq, gt).mean() * cfg.train.loss_scales.lambda_lpips
+                loss_disc = D(xhat_lq, for_G=True).mean() * cfg.train.loss_scales.lambda_gan
                 loss_G = loss_l2 + loss_lpips + loss_disc
                 accelerator.backward(loss_G)
+                torch.nn.utils.clip_grad_norm_(latent_transformer.model.parameters(), max_norm=1.0)
                 G_opt.step()
                 G_opt.zero_grad()
                 accelerator.wait_for_everyone()
@@ -480,13 +481,14 @@ def main(args) -> None:
                             y=inp["y"],
                         )
                     enhanced_latent = process_out(denoised.float())
-                    xhat_lq = vae.decode(enhanced_latent)
+                    xhat_lq = vae.decode(enhanced_latent).clamp(-1, 1).float()
 
                 accelerator.unwrap_model(D).train().requires_grad_(True)
                 loss_D_real, real_logits = D(gt, for_real=True, return_logits=True)
-                loss_D_fake, fake_logits = D(xhat_lq.float(), for_real=False, return_logits=True)
+                loss_D_fake, fake_logits = D(xhat_lq, for_real=False, return_logits=True)
                 loss_D = loss_D_real.mean() + loss_D_fake.mean()
                 accelerator.backward(loss_D)
+                torch.nn.utils.clip_grad_norm_(D.parameters(), max_norm=1.0)
                 D_opt.step()
                 D_opt.zero_grad()
                 accelerator.wait_for_everyone()
