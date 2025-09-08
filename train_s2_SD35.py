@@ -289,8 +289,8 @@ def prepare_sd35_inputs(pred_latent, model_sampling, device, weight_dtype, model
     sigma = model_sampling.sigma(t)                  # [B], float32 is fine
 
     # 4) 
-    c_crossattn = torch.zeros(B, 0, x.shape[1], device=device, dtype=weight_dtype)  # [B, 0, D]
-    y = torch.zeros(B, x.shape[1], device=device, dtype=weight_dtype)               # [B, D]         
+    c_crossattn = torch.zeros(B, 0, 2048, device=device, dtype=weight_dtype)  # [B, 0, D]
+    y = torch.zeros(B, 2048, device=device, dtype=weight_dtype)               # [B, D]         
 
     return dict(x=x, sigma=sigma, c_crossattn=c_crossattn, y=y)
 
