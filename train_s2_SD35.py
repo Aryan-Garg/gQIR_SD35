@@ -184,7 +184,7 @@ class BaseModel(torch.nn.Module):
         num_patches = file.get_tensor(f"{prefix}pos_embed").shape[1]
         pos_embed_max_size = round(math.sqrt(num_patches))
         adm_in_channels = file.get_tensor(f"{prefix}y_embedder.mlp.0.weight").shape[1]
-        context_shape = file.get_tensor(f"{prefix}context_embedder.weight").shape
+        # context_shape = file.get_tensor(f"{prefix}context_embedder.weight").shape
 
         qk_norm = (
             "rms"
@@ -202,13 +202,14 @@ class BaseModel(torch.nn.Module):
             ]
         )
 
-        context_embedder_config = {
-            "target": "torch.nn.Linear",
-            "params": {
-                "in_features": context_shape[1],
-                "out_features": context_shape[0],
-            },
-        }
+        # context_embedder_config = {
+        #     "target": "torch.nn.Linear",
+        #     "params": {
+        #         "in_features": context_shape[1],
+        #         "out_features": context_shape[0],
+        #     },
+        # }
+        context_embedder_config = None  # No text encoder
         self.diffusion_model = MMDiTX(
             input_size=None,
             pos_embed_scaling_factor=None,
