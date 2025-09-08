@@ -35,10 +35,12 @@ dependencies:
       - aiohttp==3.10.10
       - aiosignal==1.3.1
       - annotated-types==0.7.0
+      - antialiased-cnns==0.3
       - antlr4-python3-runtime==4.9.3
       - anyio==4.6.2.post1
       - attrs==24.2.0
       - backports-tarfile==1.2.0
+      - beautifulsoup4==4.13.5
       - bitsandbytes==0.44.1
       - boto3==1.35.46
       - botocore==1.35.46
@@ -53,8 +55,10 @@ dependencies:
       - clip-interrogator==0.6.0
       - colorama==0.4.6
       - compel==2.0.3
+      - contourpy==1.3.3
       - crashtest==0.4.1
       - cryptography==45.0.7
+      - cycler==0.12.1
       - dataproperty==1.0.1
       - datasets==3.0.2
       - deepspeed==0.15.3
@@ -72,9 +76,11 @@ dependencies:
       - fastjsonschema==2.21.2
       - filelock==3.16.1
       - findpython==0.6.3
+      - fonttools==4.59.2
       - frozenlist==1.5.0
       - fsspec==2024.9.0
       - ftfy==6.3.0
+      - gdown==4.4.0
       - gitdb==4.0.11
       - gitpython==3.1.43
       - grpcio==1.67.0
@@ -97,6 +103,7 @@ dependencies:
       - joblib==1.4.2
       - jsonlines==4.0.0
       - keyring==25.6.0
+      - kiwisolver==1.4.9
       - lightning-utilities==0.11.8
       - lm-eval==0.4.5
       - lpips==0.1.4
@@ -105,6 +112,7 @@ dependencies:
       - markdown==3.7
       - markdown-it-py==3.0.0
       - markupsafe==3.0.2
+      - matplotlib==3.10.6
       - mbstrdecoder==1.1.3
       - mdurl==0.1.2
       - more-itertools==10.5.0
@@ -157,6 +165,7 @@ dependencies:
       - pygments==2.18.0
       - pyparsing==3.2.0
       - pyproject-hooks==1.2.0
+      - pysocks==1.7.1
       - pytablewriter==1.2.0
       - python-dateutil==2.9.0.post0
       - python-dotenv==1.0.1
@@ -183,6 +192,7 @@ dependencies:
       - six==1.16.0
       - smmap==5.0.1
       - sniffio==1.3.1
+      - soupsieve==2.8
       - sqlitedict==2.1.0
       - starlette==0.41.0
       - sympy==1.13.3
@@ -218,6 +228,7 @@ dependencies:
       - uvicorn==0.32.0
       - uvloop==0.21.0
       - virtualenv==20.32.0
+      - vision-aided-loss==0.1.0
       - wandb==0.18.5
       - watchfiles==0.24.0
       - wcwidth==0.2.13
