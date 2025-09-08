@@ -393,8 +393,8 @@ def main(args) -> None:
     # Prepare models for training/inference:
     vae.to(device)
     latent_transformer.model.to(device)
-    latent_transformer.model, G_opt, D_opt, loader, val_loader = accelerator.prepare(
-        latent_transformer.model, G_opt, D_opt, loader, val_loader
+    latent_transformer.model, D, G_opt, D_opt, loader, val_loader = accelerator.prepare(
+        latent_transformer.model, D, G_opt, D_opt, loader, val_loader
     )
     latent_transformer.model = accelerator.unwrap_model(latent_transformer.model)
 
@@ -458,8 +458,8 @@ def main(args) -> None:
                 xhat_lq = vae.decode(enhanced_latent)
 
                 accelerator.unwrap_model(D).eval().requires_grad_(False)
-                loss_l2 = F.mse_loss(xhat_lq, gt, reduction="mean") * cfg.train.loss_scales.lambda_l2
-                loss_lpips = lpips_model(xhat_lq, gt).mean() * cfg.train.loss_scales.lambda_lpips
+                loss_l2 = F.mse_loss(xhat_lq, gt.half(), reduction="mean") * cfg.train.loss_scales.lambda_l2
+                loss_lpips = lpips_model(xhat_lq.float(), gt.float()).mean() * cfg.train.loss_scales.lambda_lpips
                 loss_disc = D(xhat_lq, for_G=True).mean() * cfg.train.loss_scales.lambda_gan
                 loss_G = loss_l2 + loss_lpips + loss_disc
                 accelerator.backward(loss_G)
@@ -483,7 +483,7 @@ def main(args) -> None:
                     xhat_lq = vae.decode(enhanced_latent)
 
                 accelerator.unwrap_model(D).train().requires_grad_(True)
-                loss_D_real, real_logits = D(gt, for_real=True, return_logits=True)
+                loss_D_real, real_logits = D(gt.half(), for_real=True, return_logits=True)
                 loss_D_fake, fake_logits = D(xhat_lq, for_real=False, return_logits=True)
                 loss_D = loss_D_real.mean() + loss_D_fake.mean()
                 accelerator.backward(loss_D)
@@ -518,7 +518,7 @@ def main(args) -> None:
             # Save checkpoint:
             if global_step % cfg.train.ckpt_every == 0 or global_step == 1:
                 if accelerator.is_main_process:
-                    save_path = os.path.join(cfg.exp_dir, "checkpoints", f"checkpoint-{global_step}")
+                    save_path = os.path.join(cfg.train.exp_dir, "checkpoints", f"checkpoint-{global_step}")
                     accelerator.save_state(save_path)
                     print(f"Saved state to {save_path}")
 
