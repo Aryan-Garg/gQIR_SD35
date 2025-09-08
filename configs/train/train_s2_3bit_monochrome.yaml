@@ -44,7 +44,7 @@ train:
   
   train_steps: 1_000_000
   
-  log_every: 1000
+  log_every: 500
   ckpt_every: 5000
   image_every: 5000
   val_every: 5000
