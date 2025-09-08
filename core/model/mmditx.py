@@ -705,7 +705,7 @@ class MMDiTX(nn.Module):
         learn_sigma: bool = False,
         adm_in_channels: Optional[int] = None,
         context_embedder_config: Optional[Dict] = None,
-        register_length: int = 1,
+        register_length: int = 0,
         rmsnorm: bool = False,
         scale_mod_only: bool = False,
         swiglu: bool = False,

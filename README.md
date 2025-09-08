@@ -11,5 +11,5 @@
 
 ### Stage 2:
 
->  CUDA_VISIBLE_DEVICES=1 python3 train_s2_SD35.py --config configs/train/train_s2_3bit.yaml
->  CUDA_VISIBLE_DEVICES=2 python3 train_s2_SD35.py --config configs/train/train_s2_3bit_monochrome.yaml
+>  CUDA_VISIBLE_DEVICES=3 python3 train_s2_SD35.py --config configs/train/train_s2_3bit.yaml
+>  CUDA_VISIBLE_DEVICES=4 python3 train_s2_SD35.py --config configs/train/train_s2_3bit_monochrome.yaml

@@ -253,7 +253,7 @@ class BaseModel(torch.nn.Module):
     
 
 class SD3:
-    def __init__(self, model, shift=3.0, verbose=False, device="cpu"):
+    def __init__(self, model, shift=3.0, verbose=True, device="cpu"):
 
         with safe_open(model, framework="pt", device="cpu") as f:
             control_model_ckpt = None
@@ -289,8 +289,8 @@ def prepare_sd35_inputs(pred_latent, model_sampling, device, weight_dtype, model
     sigma = model_sampling.sigma(t)                  # [B], float32 is fine
 
     # 4) 
-    c_crossattn = None                
-    y           = None                 
+    c_crossattn = torch.zeros(B, 0, x.shape[1], device=device, dtype=weight_dtype)  # [B, 0, D]
+    y = torch.zeros(B, x.shape[1], device=device, dtype=weight_dtype)               # [B, D]         
 
     return dict(x=x, sigma=sigma, c_crossattn=c_crossattn, y=y)
 
