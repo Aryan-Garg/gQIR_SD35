@@ -303,7 +303,7 @@ def main(args) -> None:
     set_seed(310)
     device = accelerator.device
     cfg = OmegaConf.load(args.config)
-    assert cfg.train.loss_mode in ["mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"], f"Please choose a supported loss_mode from: ['mse_ls', 'ls_only', 'ls_gt', 'ls_gt_perceptual']"
+    
     # Setup an experiment folder:
     if accelerator.is_main_process:
         exp_dir = cfg.train.exp_dir
@@ -332,18 +332,18 @@ def main(args) -> None:
     
     # LAtent Space DiT
     latent_transformer = SD3(MODEL)
-    latent_transformer.eval().requires_grad_(False)
+    latent_transformer.model.eval().requires_grad_(False)
     # Add LoRA params to latent transformer
-    target_modules = cfg.lora_modules
+    target_modules = cfg.train.lora_modules
     print(f"[+] Add lora parameters to {target_modules}")
     G_lora_cfg = LoraConfig(
-        r=cfg.lora_rank,
-        lora_alpha=cfg.lora_rank, # 768
+        r=cfg.train.lora_rank,
+        lora_alpha=cfg.train.lora_rank, # 768
         init_lora_weights="gaussian",
         target_modules=target_modules,
     )
-    latent_transformer.add_adapter(G_lora_cfg)
-    lora_params = list(filter(lambda p: p.requires_grad, latent_transformer.parameters()))
+    latent_transformer.model.add_adapter(G_lora_cfg)
+    lora_params = list(filter(lambda p: p.requires_grad, latent_transformer.model.parameters()))
     assert lora_params, "Failed to find lora parameters"
     for p in lora_params:
         p.data = p.to(torch.float16)
@@ -353,7 +353,7 @@ def main(args) -> None:
     D.train().requires_grad_(True)
 
     # Setup optimizers:
-    G_params = list(filter(lambda p: p.requires_grad, latent_transformer.parameters()))
+    G_params = list(filter(lambda p: p.requires_grad, latent_transformer.model.parameters()))
     G_opt = torch.optim.AdamW(
         G_params,
         lr=cfg.train.learning_rate,
@@ -391,11 +391,11 @@ def main(args) -> None:
 
     # Prepare models for training/inference:
     vae.to(device)
-    latent_transformer.to(device)
-    latent_transformer, opt, loader, val_loader = accelerator.prepare(
-        latent_transformer, opt, loader, val_loader
+    latent_transformer.model.to(device)
+    latent_transformer.model, opt, loader, val_loader = accelerator.prepare(
+        latent_transformer.model, opt, loader, val_loader
     )
-    latent_transformer = accelerator.unwrap_model(latent_transformer)
+    latent_transformer.model = accelerator.unwrap_model(latent_transformer.model)
 
     # Variables for monitoring/logging purposes:
     global_step = 0
@@ -514,149 +514,32 @@ def main(args) -> None:
                 f"Epoch: {epoch:04d}, Global Step: {global_step:07d}"
             )
 
-            # TODO: Log loss values:
-            if global_step % cfg.train.log_every == 0:
-                # Gather values from all processes
-                avg_mse_loss = (
-                    accelerator.gather(
-                        torch.tensor(step_loss, device=device).unsqueeze(0)
-                    )
-                    .mean()
-                    .item()
-                )
-                avg_ls_loss = (
-                    accelerator.gather(
-                        torch.tensor(step_ls_loss, device=device).unsqueeze(0)
-                    )
-                    .mean()
-                    .item()
-                )
-                avg_gt_loss = (
-                    accelerator.gather(
-                        torch.tensor(step_gt_loss, device=device).unsqueeze(0)
-                    )
-                    .mean()
-                    .item()
-                )
-                avg_perceptual_loss = (
-                    accelerator.gather(
-                        torch.tensor(step_perceptual_loss, device=device).unsqueeze(0)
-                    )
-                    .mean()
-                    .item()
-                )
-                step_loss.clear()
-                step_ls_loss.clear()
-                step_gt_loss.clear()
-                step_perceptual_loss.clear()
 
+            # Log losses:
+            if global_step % cfg.train.log_every == 0 or global_step == 1:
                 if accelerator.is_local_main_process:
-                    writer.add_scalar("train/mse_loss_step", avg_mse_loss, global_step)
-                    writer.add_scalar("train/ls_loss_step", avg_ls_loss, global_step)
-                    writer.add_scalar("train/gt_loss_step", avg_gt_loss, global_step)
-                    writer.add_scalar("train/perceptual_loss_step", avg_perceptual_loss, global_step)
+                    for k, v in loss_dict.items():
+                        writer.add_scalar(f"train/{k}", v.item(), global_step)
 
             # Save checkpoint:
             if global_step % cfg.train.ckpt_every == 0 or global_step == 1:
-                if accelerator.is_local_main_process:
-                    checkpoint = vae.state_dict()
-                    ckpt_path = f"{ckpt_dir}/{global_step:07d}.pt"
-                    torch.save(checkpoint, ckpt_path)
+                if accelerator.is_main_process:
+                    save_path = os.path.join(cfg.exp, "checkpoints", f"checkpoint-{global_step}")
+                    accelerator.save_state(save_path)
+                    print(f"Saved state to {save_path}")
 
             # Log images
             if global_step % cfg.train.image_every == 0 or global_step == 1:
-                vae.encoder.eval()
-                N = 12
+                N = 2
                 log_gt, log_lq = gt[:N], lq[:N]
-                with torch.no_grad():
-                    log_pred = vae.decode(vae.encode(log_lq))
-                    log_pred_gt = vae.decode(vae.encode(log_gt))
+                log_pred = xhat_lq[:N]
                 if accelerator.is_local_main_process:
                     for tag, image in [
-                        ("image/pred_gt",( log_pred_gt + 1 )/ 2),
                         ("image/pred", (log_pred + 1) / 2),
                         ("image/gt", (log_gt + 1) / 2),
                         ("image/lq", (log_lq + 1) / 2),
                     ]:
                         writer.add_image(tag, make_grid(image, nrow=4), global_step)
-                vae.encoder.train()
-
-
-            # Evaluate model:
-            if global_step % cfg.train.val_every == 0 or global_step == 1:
-                vae.encoder.eval() 
-
-                val_loss = []
-                val_lpips_loss = []
-                val_psnr = []
-                val_pbar = tqdm(
-                    iterable=None,
-                    disable=not accelerator.is_local_main_process,
-                    unit="batch",
-                    total=len(val_loader),
-                    leave=False,
-                    desc="Validation",
-                )
-                for val_batch in val_loader:
-                    to(val_batch, device)
-                    val_batch = batch_transform(val_batch)
-                    val_gt, val_lq, val_prompt, val_gt_path = val_batch
-                    val_gt = (
-                        rearrange(val_gt, "b h w c -> b c h w")
-                        .contiguous()
-                        .float()
-                    )
-                    val_lq = (
-                        rearrange(val_lq, "b h w c -> b c h w").contiguous().float()
-                    )
-                    with torch.no_grad():
-
-                        lq_z = vae.encode(val_lq)
-                        gt_z = vae.encode(val_gt)
-                        xhat_lq = vae.decode(lq_z)
-                        xhat_gt = vae.decode(gt_z)
-                        vloss, vloss_dict = compute_loss(val_gt, gt_z, lq_z, xhat_gt, xhat_lq, 
-                                           lpips_model, cfg.train.loss_mode, cfg.train.loss_scales)
-
-                        val_psnr.append(
-                            calculate_psnr_pt(xhat_lq, val_gt, crop_border=0)
-                            .mean()
-                            .item()
-                        )
-                        val_loss.append(vloss.item())
-                        val_lpips_loss.append(vloss_dict['perceptual'])
-                    val_pbar.update(1)
-
-                val_pbar.close()
-                avg_val_loss = (
-                    accelerator.gather(
-                        torch.tensor(val_loss, device=device).unsqueeze(0)
-                    )
-                    .mean()
-                    .item()
-                )
-                avg_val_lpips = (
-                    accelerator.gather(
-                        torch.tensor(val_lpips_loss, device=device).unsqueeze(0)
-                    )
-                    .mean()
-                    .item()
-                )
-                avg_val_psnr = (
-                    accelerator.gather(
-                        torch.tensor(val_psnr, device=device).unsqueeze(0)
-                    )
-                    .mean()
-                    .item()
-                )
-                if accelerator.is_local_main_process:
-                    for tag, val in [
-                        ("val/loss", avg_val_loss),
-                        ("val/lpips", avg_val_lpips),
-                        ("val/psnr", avg_val_psnr),
-                    ]:
-                        writer.add_scalar(tag, val, global_step)
-                vae.encoder.train()
 
             accelerator.wait_for_everyone()
 
@@ -665,14 +548,6 @@ def main(args) -> None:
 
         pbar.close()
         epoch += 1
-        avg_epoch_loss = (
-            accelerator.gather(torch.tensor(epoch_loss, device=device).unsqueeze(0))
-            .mean()
-            .item()
-        )
-        epoch_loss.clear()
-        if accelerator.is_local_main_process:
-            writer.add_scalar("train/loss_epoch", avg_epoch_loss, global_step)
 
     if accelerator.is_local_main_process:
         print("done!")
