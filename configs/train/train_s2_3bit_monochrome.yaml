@@ -38,7 +38,7 @@ train:
   ###########################
 
   learning_rate: 1e-5
-  batch_size: 1 
+  batch_size: 5
   
   num_workers: 96
   
