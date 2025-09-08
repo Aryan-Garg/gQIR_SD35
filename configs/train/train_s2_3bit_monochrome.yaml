@@ -28,21 +28,21 @@ batch_transform:
 train:
   # experiment directory path
   sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
-  exp_dir: /home/argar/apgi/gqvr_sd35/experiments/enhanced_3bit_monochrome
-  vae_path: /home/argar/apgi/gqvr_sd35/experiments/demoisac_3bit/checkpoints/0300000.pt
+  exp_dir: /home/argar/apgi/gqvr_sd35/experiments/DiT_Stage2/s2_demosaic_3bit
+  vae_path: /home/argar/apgi/gqvr_sd35/experiments/VAEs_Stage1/demoisac_3bit/checkpoints/0300000.pt
   ##########################
   # TODO:
   ##########################
-  lora_rank: 768
+  lora_rank: 64
   lora_modules: ["x_embedder.proj", "context_block.attn.qkv", "context_block.attn.proj", "x_block.attn.qkv", "x_block.attn.proj", "ff.net.0.proj", "ff.net.2", "final_layer.linear"]
   ###########################
 
   learning_rate: 1e-5
-  batch_size: 16
+  batch_size: 1 
   
   num_workers: 96
   
-  train_steps: 1_000_000
+  train_steps: 50_000
   
   log_every: 1000
   ckpt_every: 50000
