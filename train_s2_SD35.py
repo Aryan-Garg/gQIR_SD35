@@ -460,7 +460,7 @@ def main(args) -> None:
                 accelerator.unwrap_model(D).eval().requires_grad_(False)
                 loss_l2 = F.mse_loss(xhat_lq, gt.half(), reduction="mean") * cfg.train.loss_scales.lambda_l2
                 loss_lpips = lpips_model(xhat_lq.float(), gt.float()).mean() * cfg.train.loss_scales.lambda_lpips
-                loss_disc = D(xhat_lq, for_G=True).mean() * cfg.train.loss_scales.lambda_gan
+                loss_disc = D(xhat_lq.float(), for_G=True).mean() * cfg.train.loss_scales.lambda_gan
                 loss_G = loss_l2 + loss_lpips + loss_disc
                 accelerator.backward(loss_G)
                 G_opt.step()
@@ -483,8 +483,8 @@ def main(args) -> None:
                     xhat_lq = vae.decode(enhanced_latent)
 
                 accelerator.unwrap_model(D).train().requires_grad_(True)
-                loss_D_real, real_logits = D(gt.half(), for_real=True, return_logits=True)
-                loss_D_fake, fake_logits = D(xhat_lq, for_real=False, return_logits=True)
+                loss_D_real, real_logits = D(gt, for_real=True, return_logits=True)
+                loss_D_fake, fake_logits = D(xhat_lq.float(), for_real=False, return_logits=True)
                 loss_D = loss_D_real.mean() + loss_D_fake.mean()
                 accelerator.backward(loss_D)
                 D_opt.step()
@@ -510,7 +510,7 @@ def main(args) -> None:
 
 
             # Log losses:
-            if global_step % cfg.train.log_every == 0 or global_step == 1:
+            if global_step % cfg.train.log_every == 0 or global_step % cfg.train.log_every == 0 == 1:
                 if accelerator.is_local_main_process:
                     for k, v in loss_dict.items():
                         writer.add_scalar(f"train/{k}", v.item(), global_step)
