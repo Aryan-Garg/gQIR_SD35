@@ -17,7 +17,7 @@ import diffusers
 from diffusers import AutoencoderKL, StableDiffusion3Pipeline
 import lpips
 from safetensors import safe_open
-from peft import LoraConfig
+from peft import LoraConfig, get_peft_model
 
 import math
 import re
@@ -237,8 +237,8 @@ class BaseModel(torch.nn.Module):
         model_output = self.diffusion_model(
             x.to(dtype),
             timestep,
-            context=c_crossattn.to(dtype),
-            y=y.to(dtype),
+            context=c_crossattn,
+            y=y,
             controlnet_hidden_states=controlnet_hidden_states,
             skip_layers=skip_layers,
         ).float()
@@ -269,7 +269,7 @@ class SD3:
     
 #################################################################
 
-def prepare_sd35_inputs(pred_latent, prompts, text_adapter, model_sampling, device, weight_dtype, model_t=200):
+def prepare_sd35_inputs(pred_latent, model_sampling, device, weight_dtype, model_t=200):
     """
     Returns the exact kwargs your BaseModel.apply_model expects:
       x:           latent in model input space (after process_in)
@@ -279,20 +279,17 @@ def prepare_sd35_inputs(pred_latent, prompts, text_adapter, model_sampling, devi
     """
     B = pred_latent.size(0)
 
-    # 1) Text cond (context + pooled/ADM)
-    cond = text_adapter.encode(prompts)              # dict(context=[B,T,C], pooled=[B,C])
-
     # 2) Encode image to latent, then into model’s input space
     x = pred_latent.to(device, weight_dtype)                # SD3.5 LT is fp32 
 
     # 3) Sigma schedule (discrete flow mapping)
-    # model_sampling.sigma expects a tensor timestep (1..1000) scaled inside; you already implemented it.
+    # model_sampling.sigma expects a tensor timestep (1..1000) scaled inside. Set to 200 as in HYPIR
     t = torch.full((B,), model_t, device=device, dtype=torch.float32)
     sigma = model_sampling.sigma(t)                  # [B], float32 is fine
 
-    # 4) Shapes/dtypes ready for apply_model
-    c_crossattn = cond["context"]                    # [B, T, C_ctx], fp16
-    y           = cond["pooled"]                     # [B, C_adm],    fp16
+    # 4) 
+    c_crossattn = None                
+    y           = None                 
 
     return dict(x=x, sigma=sigma, c_crossattn=c_crossattn, y=y)
 
@@ -328,7 +325,8 @@ def main(args) -> None:
     # Freeze VAE
     vae.eval().requires_grad_(False)
 
-    text_adapter = SD3Tokenizer()
+    # For future +prompt trainings
+    # text_adapter = SD3Tokenizer()
     
     # LAtent Space DiT
     latent_transformer = SD3(MODEL)
@@ -342,11 +340,13 @@ def main(args) -> None:
         init_lora_weights="gaussian",
         target_modules=target_modules,
     )
-    latent_transformer.model.add_adapter(G_lora_cfg)
+    latent_transformer.model = get_peft_model(latent_transformer.model, G_lora_cfg)
     lora_params = list(filter(lambda p: p.requires_grad, latent_transformer.model.parameters()))
     assert lora_params, "Failed to find lora parameters"
     for p in lora_params:
         p.data = p.to(torch.float16)
+
+    print(f"\n[+] LoRA trainable params: {sum(p.numel() for p in lora_params) / 1000000} M\n")
 
     # Load Discriminator & make trainable
     D = ImageConvNextDiscriminator().to(device=accelerator.device)
@@ -392,30 +392,25 @@ def main(args) -> None:
     # Prepare models for training/inference:
     vae.to(device)
     latent_transformer.model.to(device)
-    latent_transformer.model, opt, loader, val_loader = accelerator.prepare(
-        latent_transformer.model, opt, loader, val_loader
+    latent_transformer.model, G_opt, D_opt, loader, val_loader = accelerator.prepare(
+        latent_transformer.model, G_opt, D_opt, loader, val_loader
     )
     latent_transformer.model = accelerator.unwrap_model(latent_transformer.model)
 
     # Variables for monitoring/logging purposes:
     global_step = 0
     max_steps = cfg.train.train_steps
-    step_loss = []
-    step_ls_loss = []
-    step_gt_loss = []
-    step_perceptual_loss = []
     epoch = 0
-    epoch_loss = []
 
-    if "perceptual" in cfg.train.loss_mode:
-        with warnings.catch_warnings():
-            # avoid warnings from lpips internal
-            warnings.simplefilter("ignore")
-            lpips_model = (
-                lpips.LPIPS(net="vgg", verbose=accelerator.is_local_main_process)
-                .eval()
-                .to(device)
-            )
+
+    with warnings.catch_warnings():
+        # avoid warnings from lpips internal
+        warnings.simplefilter("ignore")
+        lpips_model = (
+            lpips.LPIPS(net="vgg", verbose=accelerator.is_local_main_process)
+            .eval()
+            .to(device)
+        )
 
     if accelerator.is_local_main_process:
         writer = SummaryWriter(exp_dir)
@@ -433,7 +428,7 @@ def main(args) -> None:
         for batch in loader:
             to(batch, device)
             batch = batch_transform(batch)
-            gt, lq, prompt, gt_path = batch
+            gt, lq, _, _ = batch
             
             gt = rearrange(gt, "b h w c -> b c h w").contiguous().float()
             lq = rearrange(lq, "b h w c -> b c h w").contiguous().float()
@@ -444,9 +439,7 @@ def main(args) -> None:
             pred_latent = process_in(pred_latent)
             
             inp = prepare_sd35_inputs(
-                    pred_latent=pred_latent,
-                    prompts=prompt,                                  # list[str], len B
-                    text_adapter=text_adapter,
+                    pred_latent=pred_latent,                
                     model_sampling=latent_transformer.model.model_sampling,
                     device=accelerator.device,
                     weight_dtype=torch.float16,
