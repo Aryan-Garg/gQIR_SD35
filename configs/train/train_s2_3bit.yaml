@@ -42,7 +42,7 @@ train:
   
   num_workers: 96
   
-  train_steps: 5002
+  train_steps: 1_000_000
   
   log_every: 1000
   ckpt_every: 5000
