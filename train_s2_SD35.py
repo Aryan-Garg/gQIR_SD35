@@ -518,7 +518,7 @@ def main(args) -> None:
             # Save checkpoint:
             if global_step % cfg.train.ckpt_every == 0 or global_step == 1:
                 if accelerator.is_main_process:
-                    save_path = os.path.join(cfg.exp, "checkpoints", f"checkpoint-{global_step}")
+                    save_path = os.path.join(cfg.exp_dir, "checkpoints", f"checkpoint-{global_step}")
                     accelerator.save_state(save_path)
                     print(f"Saved state to {save_path}")
 
