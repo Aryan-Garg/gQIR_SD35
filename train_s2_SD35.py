@@ -518,7 +518,7 @@ def main(args) -> None:
                         writer.add_scalar(f"train/{k}", v.item(), global_step)
 
             # Save checkpoint:
-            if global_step % cfg.train.ckpt_every == 0 or global_step == 1:
+            if global_step % cfg.train.ckpt_every == 0:
                 if accelerator.is_main_process:
                     save_path = os.path.join(cfg.train.exp_dir, "checkpoints", f"checkpoint-{global_step}")
                     accelerator.save_state(save_path)
