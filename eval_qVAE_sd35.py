@@ -244,8 +244,7 @@ def main(args) -> None:
             rearrange(val_lq, "b h w c -> b c h w").contiguous().float()
         )
         with torch.no_grad():
-            out = vae.decode(vae.encode(val_lq.to(device))).clamp(-1,1).float()
-            out = (out + 1.) / 2.
+            out = vae.decode(vae.encode(val_lq.to(device))).clamp(0,1).float()
         psnr, ssim, lpips = compute_full_reference_metrics(val_gt.to(device), out)
         maniqa, clipiqa, musiq = compute_no_reference_metrics(out)
 
