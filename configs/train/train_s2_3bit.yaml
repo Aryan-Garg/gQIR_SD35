@@ -1,21 +1,21 @@
 dataset:
   train:
-    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
+    target: core.dataset.spc_image_only.SPCDataset
     params:
-      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
+      file_list: /media/agarg54/Extreme SSD/dataset_files/combined_dataset.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 512
+      out_size: 256
       crop_type: "center"
       use_hflip: False
       bits: 3
   val:
-    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
+    target: core.dataset.spc_image_only.SPCDataset
     params:
-      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
+      file_list: /media/agarg54/Extreme SSD/dataset_txt_files/full_test_set.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 512
+      out_size: 256
       crop_type: "center"
       use_hflip: False
       bits: 3
@@ -27,9 +27,9 @@ batch_transform:
 
 train:
   # experiment directory path
-  sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
-  exp_dir: /home/argar/apgi/gqvr_sd35/experiments/DiT_Stage2/s2_mosaic_3bit_5k
-  vae_path: /home/argar/apgi/gqvr_sd35/experiments/VAEs_Stage1/mosaic_3bit/checkpoints/0250000.pt
+  sd_path: /media/agarg54/Extreme SSD/sd3.5_large.safetensors
+  exp_dir: /home/argar/apgi/gqvr_sd35/experiments/DiT_Stage2/s2_demosaic
+  vae_path: /media/agarg54/Extreme SSD/weights/gqir_sd35/demosaic_3bit/checkpoints/0300000.pt
   ##########################
   # TODO:
   ##########################
@@ -40,9 +40,9 @@ train:
   learning_rate: 1e-5
   batch_size: 1
   
-  num_workers: 96
+  num_workers: 24
   
-  train_steps: 1_000_000
+  train_steps: 200_000
   
   log_every: 500
   ckpt_every: 5000

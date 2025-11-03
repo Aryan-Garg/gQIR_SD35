@@ -27,7 +27,7 @@ from core.utils.common import instantiate_from_config, calculate_psnr_pt, to
 
 import matplotlib.pyplot as plt
 
-def compute_loss(gt, z_gt, z_pred, xhat_gt, xhat_lq, lpips_model, loss_mode, scales):
+def compute_loss(gt, z_gt, z_pred, xhat_lq, lpips_model, loss_mode, scales):
     #  "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
     mse_loss = 0.
     ls_loss = 0.
@@ -38,14 +38,13 @@ def compute_loss(gt, z_gt, z_pred, xhat_gt, xhat_lq, lpips_model, loss_mode, sca
         ls_loss = scales.lsa * F.mse_loss(z_pred, z_gt, reduction="mean")
         loss_dict["lsa"] = ls_loss.item()
         if "mse" in loss_mode:
-            mse_loss = scales.mse * F.mse_loss(xhat_lq, xhat_gt, reduction="mean")
+            mse_loss = scales.mse * F.mse_loss(xhat_lq, gt, reduction="mean")
             loss_dict["mse"] = mse_loss.item()
-        elif "gt" in loss_mode:
-            gt_loss = scales.gt * F.l1_loss(xhat_gt, gt, reduction="mean")
+        if "gt" in loss_mode:
+            gt_loss = scales.gt * F.l1_loss(xhat_lq, gt, reduction="mean")
             loss_dict["gt_loss"] = gt_loss.item()
         if "perceptual" in loss_mode:
-            perceptual_loss = (scales.perceptual_gt * lpips_model(xhat_gt, gt)) + \
-                (scales.perceptual_lq * lpips_model(xhat_lq, gt))
+            perceptual_loss = scales.perceptual * lpips_model(xhat_lq, gt)
             loss_dict["perceptual"] = perceptual_loss.item()
     else:
         raise NotImplementedError("[!] Always use Latent Space Alignment (LSA) loss")
@@ -162,7 +161,7 @@ def main(args) -> None:
     set_seed(310)
     device = accelerator.device
     cfg = OmegaConf.load(args.config)
-    assert cfg.train.loss_mode in ["mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"], f"Please choose a supported loss_mode from: ['mse_ls', 'ls_only', 'ls_gt', 'ls_gt_perceptual']"
+    # assert cfg.train.loss_mode in ["mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"], f"Please choose a supported loss_mode from: ['mse_ls', 'ls_only', 'ls_gt', 'ls_gt_perceptual']"
     # Setup an experiment folder:
     if accelerator.is_main_process:
         exp_dir = cfg.train.exp_dir
@@ -173,7 +172,7 @@ def main(args) -> None:
 
 
     # Create & load VAE from pretrained SD 3.5 model:
-    MODEL = "/home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors" 
+    MODEL = cfg.train.sd_path
     with safe_open(MODEL, framework="pt", device="cpu") as f:
         vae = SDVAE(device="cpu", dtype=torch.float32)
         prefix = ""
@@ -186,6 +185,9 @@ def main(args) -> None:
     for name, p in vae.named_parameters():
         p.requires_grad = True if "encoder" in name else False
         # print(f"{name} -> {p.shape} isTrainable? {p.requires_grad}")
+
+    print(f"[~] All trainable VAE parameters: {sum(p.numel() for p in vae.parameters() if p.requires_grad) / 1e6:.2f}M")
+    print(f"[~] All VAE parameters: {sum(p.numel() for p in vae.parameters()) / 1e6:.2f}M")
 
     # Setup optimizer:
     opt = torch.optim.AdamW(
@@ -263,23 +265,21 @@ def main(args) -> None:
             gt = rearrange(gt, "b h w c -> b c h w").contiguous().float()
             lq = rearrange(lq, "b h w c -> b c h w").contiguous().float()
 
+            gt = (gt + 1.) / 2.
             # Train step:
-            gt_latent = vae.encode(gt)
-            pred_latent = vae.encode(lq)
+            with torch.no_grad():
+                gt_latent = vae.encode(gt).float()
+            pred_latent = vae.encode(lq).float()
             # print("[+] gt latent.shape:", gt_latent.size())
-            xhat_lq = vae.decode(pred_latent)
-            xhat_gt = vae.decode(gt_latent)
-            # print("[+] gt reconstructed:", xhat_gt.size(), xhat_gt.max(), xhat_gt.min())
+            xhat_lq = vae.decode(pred_latent).clamp(0,1).float()
 
-            loss, loss_dict = compute_loss(gt, gt_latent, pred_latent, xhat_gt, xhat_lq, 
+            loss, loss_dict = compute_loss(gt, gt_latent, pred_latent, xhat_lq, 
                                            lpips_model, cfg.train.loss_mode, cfg.train.loss_scales)
 
             opt.zero_grad()
             accelerator.backward(loss)
             opt.step()
             accelerator.wait_for_everyone()
-            # plt.imsave("gt_recon.png", xhat_gt.squeeze().permute(1,2,0).detach().cpu().float().clamp(0,1).numpy())
-            # plt.imsave("lq_recon.png", xhat_lq.squeeze().permute(1,2,0).detach().cpu().float().clamp(0,1).numpy())
           
             global_step += 1
             step_loss.append(loss_dict["mse"])
@@ -293,7 +293,7 @@ def main(args) -> None:
             )
 
             # Log loss values:
-            if global_step % cfg.train.log_every == 0:
+            if global_step % cfg.train.log_every == 0 or global_step == 1:
                 # Gather values from all processes
                 avg_mse_loss = (
                     accelerator.gather(
@@ -335,7 +335,7 @@ def main(args) -> None:
                     writer.add_scalar("train/perceptual_loss_step", avg_perceptual_loss, global_step)
 
             # Save checkpoint:
-            if global_step % cfg.train.ckpt_every == 0 or global_step == 1:
+            if global_step % cfg.train.ckpt_every == 0:
                 if accelerator.is_local_main_process:
                     checkpoint = vae.state_dict()
                     ckpt_path = f"{ckpt_dir}/{global_step:07d}.pt"
@@ -347,13 +347,11 @@ def main(args) -> None:
                 N = 12
                 log_gt, log_lq = gt[:N], lq[:N]
                 with torch.no_grad():
-                    log_pred = vae.decode(vae.encode(log_lq))
-                    log_pred_gt = vae.decode(vae.encode(log_gt))
+                    log_pred = vae.decode(vae.encode(log_lq)).clamp(0,1)
                 if accelerator.is_local_main_process:
                     for tag, image in [
-                        ("image/pred_gt",( log_pred_gt + 1 )/ 2),
-                        ("image/pred", (log_pred + 1) / 2),
-                        ("image/gt", (log_gt + 1) / 2),
+                        ("image/pred", log_pred),
+                        ("image/gt", log_gt),
                         ("image/lq", (log_lq + 1) / 2),
                     ]:
                         writer.add_image(tag, make_grid(image, nrow=4), global_step)
@@ -361,7 +359,7 @@ def main(args) -> None:
 
 
             # Evaluate model:
-            if global_step % cfg.train.val_every == 0 or global_step == 1:
+            if global_step % cfg.train.val_every == 0:
                 vae.encoder.eval() 
 
                 val_loss = []
@@ -379,21 +377,20 @@ def main(args) -> None:
                     to(val_batch, device)
                     val_batch = batch_transform(val_batch)
                     val_gt, val_lq, val_prompt, val_gt_path = val_batch
-                    val_gt = (
+                    val_gt = ((
                         rearrange(val_gt, "b h w c -> b c h w")
                         .contiguous()
                         .float()
-                    )
+                    ) + 1.) / 2.
                     val_lq = (
                         rearrange(val_lq, "b h w c -> b c h w").contiguous().float()
                     )
                     with torch.no_grad():
 
-                        lq_z = vae.encode(val_lq)
-                        gt_z = vae.encode(val_gt)
-                        xhat_lq = vae.decode(lq_z)
-                        xhat_gt = vae.decode(gt_z)
-                        vloss, vloss_dict = compute_loss(val_gt, gt_z, lq_z, xhat_gt, xhat_lq, 
+                        lq_z = vae.encode(val_lq).float()
+                        gt_z = vae.encode(val_gt).float()
+                        xhat_lq = vae.decode(lq_z).clamp(0,1).float()
+                        vloss, vloss_dict = compute_loss(val_gt, gt_z, lq_z, xhat_lq, 
                                            lpips_model, cfg.train.loss_mode, cfg.train.loss_scales)
 
                         val_psnr.append(

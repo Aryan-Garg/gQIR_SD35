@@ -31,8 +31,74 @@ from core.utils.common import instantiate_from_config, calculate_psnr_pt, to
 from core.model.mmditx import MMDiTX
 from core.model.convnext import ImageConvNextDiscriminator
 from core.model.other_impls import SD3Tokenizer
+from core.utils.tabulate import tabulate
+from other_impls import SD3Tokenizer
 
 import matplotlib.pyplot as plt
+
+
+CLIPG_CONFIG = {
+    "hidden_act": "gelu",
+    "hidden_size": 1280,
+    "intermediate_size": 5120,
+    "num_attention_heads": 20,
+    "num_hidden_layers": 32,
+}
+
+
+class ClipG:
+    def __init__(self, model_folder: str, device: str = "cpu"):
+        with safe_open(
+            f"{model_folder}/clip_g.safetensors", framework="pt", device="cpu"
+        ) as f:
+            self.model = SDXLClipG(CLIPG_CONFIG, device=device, dtype=torch.float32)
+            load_into(f, self.model.transformer, "", device, torch.float32)
+
+
+CLIPL_CONFIG = {
+    "hidden_act": "quick_gelu",
+    "hidden_size": 768,
+    "intermediate_size": 3072,
+    "num_attention_heads": 12,
+    "num_hidden_layers": 12,
+}
+
+
+class ClipL:
+    def __init__(self, model_folder: str):
+        with safe_open(
+            f"{model_folder}/clip_l.safetensors", framework="pt", device="cpu"
+        ) as f:
+            self.model = SDClipModel(
+                layer="hidden",
+                layer_idx=-2,
+                device="cpu",
+                dtype=torch.float32,
+                layer_norm_hidden_state=False,
+                return_projected_pooled=False,
+                textmodel_json_config=CLIPL_CONFIG,
+            )
+            load_into(f, self.model.transformer, "", "cpu", torch.float32)
+
+
+T5_CONFIG = {
+    "d_ff": 10240,
+    "d_model": 4096,
+    "num_heads": 64,
+    "num_layers": 24,
+    "vocab_size": 32128,
+}
+
+
+class T5XXL:
+    def __init__(self, model_folder: str, device: str = "cpu", dtype=torch.float32):
+        with safe_open(
+            f"{model_folder}/t5xxl.safetensors", framework="pt", device="cpu"
+        ) as f:
+            self.model = T5XXLModel(T5_CONFIG, device=device, dtype=dtype)
+            load_into(f, self.model.transformer, "", device, dtype)
+
+
 
 def compute_loss(gt, z_gt, z_pred, xhat_gt, xhat_lq, lpips_model, loss_mode, scales):
     #  "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
@@ -269,6 +335,10 @@ class SD3:
             load_into(f, self.model, "model.", "cpu", torch.float16)
     
 #################################################################
+def fix_cond(cond):
+    cond, pooled = (cond[0].half().cuda(), cond[1].half().cuda())
+    return {"c_crossattn": cond, "y": pooled}
+
 
 def prepare_sd35_inputs(pred_latent, model_sampling, device, weight_dtype, model_t=200):
     """
@@ -288,11 +358,46 @@ def prepare_sd35_inputs(pred_latent, model_sampling, device, weight_dtype, model
     t = torch.full((B,), model_t, device=device, dtype=torch.float32)
     sigma = model_sampling.sigma(t)                  # [B], float32 is fine
 
-    # 4) 
-    c_crossattn = torch.zeros(B, 1, 2432, device=device, dtype=weight_dtype)  # [B, 0, D]
-    y = torch.zeros(B, 2048, device=device, dtype=weight_dtype)               # [B, D]         
+    # 4) Text embeddings
+    cond = fix_cond(get_cond(""))
 
-    return dict(x=x, sigma=sigma, c_crossattn=c_crossattn, y=y)
+    return dict(x=x, sigma=sigma, c_crossattn=cond['c_crossattn'], y=cond['y'])
+
+
+def summary_models(modelDict):
+    table_data = []
+    for attr, value in modelDict.items():
+        if not isinstance(value, torch.nn.Module):
+            continue
+        model = value
+        model_type = type(model).__name__
+        total_params = sum(p.numel() for p in model.parameters()) / 1_000_000
+        learnable_params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1_000_000
+        table_data.append([attr, model_type, f"{total_params:.2f}", f"{learnable_params:.2f}"])
+    headers = ["Model Name", "Model Type", "Total Parameters (M)", "Learnable Parameters (M)"]
+    table = tabulate(table_data, headers=headers, tablefmt="pretty")
+    print.info(f"Model Summary:\n{table}")
+
+
+tokenizer = SD3Tokenizer()
+print("Loading Google T5-v1-XXL...")
+t5xxl = T5XXL(model_folder, text_encoder_device, torch.float32)
+print("Loading OpenAI CLIP L...")
+clip_l = ClipL(model_folder)
+print("Loading OpenCLIP bigG...")
+clip_g = ClipG(model_folder, text_encoder_device)
+
+def get_cond(prompt):
+    print("Encode prompt...")
+    tokens = tokenizer.tokenize_with_weights(prompt)
+    l_out, l_pooled = clip_l.model.encode_token_weights(tokens["l"])
+    g_out, g_pooled = clip_g.model.encode_token_weights(tokens["g"])
+    t5_out, t5_pooled = t5xxl.model.encode_token_weights(tokens["t5xxl"])
+    lg_out = torch.cat([l_out, g_out], dim=-1)
+    lg_out = torch.nn.functional.pad(lg_out, (0, 4096 - lg_out.shape[-1]))
+    return torch.cat([lg_out, t5_out], dim=-2), torch.cat(
+        (l_pooled, g_pooled), dim=-1
+    )
 
 
 def main(args) -> None:
@@ -312,7 +417,7 @@ def main(args) -> None:
 
 
     # Create & load VAE from pretrained SD 3.5 model:
-    MODEL = "/home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors" 
+    MODEL = "/media/agarg54/Extreme SSD/sd3.5_large.safetensors" 
     with safe_open(MODEL, framework="pt", device="cpu") as f:
         vae = SDVAE(device="cpu", dtype=torch.float32)
         prefix = ""
@@ -349,6 +454,7 @@ def main(args) -> None:
 
     print(f"\n[+] LoRA trainable params: {sum(p.numel() for p in lora_params) / 1000000} M\n")
 
+
     # Load Discriminator & make trainable
     D = ImageConvNextDiscriminator().to(device=accelerator.device)
     D.train().requires_grad_(True)
@@ -367,7 +473,7 @@ def main(args) -> None:
         lr=cfg.train.learning_rate,
         betas=(0.9, 0.99)
     )
-
+    summary_models({"ImageConvNext": D, "latent_MMDiT": latent_transformer.model, "vae": vae})
     # Setup data:
     dataset = instantiate_from_config(cfg.dataset.train)
     loader = DataLoader(
@@ -377,14 +483,14 @@ def main(args) -> None:
         shuffle=True,
         drop_last=True,
     )
-    val_dataset = instantiate_from_config(cfg.dataset.val)
-    val_loader = DataLoader(
-        dataset=val_dataset,
-        batch_size=cfg.train.batch_size,
-        num_workers=cfg.train.num_workers,
-        shuffle=False,
-        drop_last=False,
-    )
+    # val_dataset = instantiate_from_config(cfg.dataset.val)
+    # val_loader = DataLoader(
+    #     dataset=val_dataset,
+    #     batch_size=cfg.train.batch_size,
+    #     num_workers=cfg.train.num_workers,
+    #     shuffle=False,
+    #     drop_last=False,
+    # )
     if accelerator.is_local_main_process:
         print(f"Dataset contains {len(dataset):,} images from {dataset.file_list}")
 
@@ -432,6 +538,7 @@ def main(args) -> None:
             gt, lq, _, _ = batch
             
             gt = rearrange(gt, "b h w c -> b c h w").contiguous().float()
+            # gt = (gt + 1.) / 2.
             lq = rearrange(lq, "b h w c -> b c h w").contiguous().float()
 
             # Train step:
@@ -440,11 +547,11 @@ def main(args) -> None:
             pred_latent = process_in(pred_latent)
             
             inp = prepare_sd35_inputs(
-                    pred_latent=pred_latent,                
-                    model_sampling=latent_transformer.model.model_sampling,
-                    device=accelerator.device,
-                    weight_dtype=torch.float16,
-                    model_t=200  # Same as HYPIR
+                pred_latent=pred_latent,                
+                model_sampling=latent_transformer.model.model_sampling,
+                device=accelerator.device,
+                weight_dtype=torch.float16,
+                model_t=200  # Same as HYPIR
             )
             if generator_step:
                 with torch.autocast(device_type=accelerator.device.type, dtype=torch.float16):

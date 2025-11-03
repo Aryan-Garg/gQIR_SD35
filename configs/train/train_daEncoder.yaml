@@ -2,20 +2,20 @@ dataset:
   train:
     target: core.dataset.spc_image_only.SPCDataset
     params:
-      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
+      file_list: /media/agarg54/Extreme SSD/dataset_files/combined_dataset.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 512
+      out_size: 768
       crop_type: "center"
       use_hflip: False
       bits: 3
   val:
     target: core.dataset.spc_image_only.SPCDataset
     params:
-      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
+      file_list: /media/agarg54/Extreme SSD/dataset_txt_files/full_test_set.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 512
+      out_size: 768
       crop_type: "center"
       use_hflip: False
       bits: 3
@@ -27,21 +27,20 @@ batch_transform:
 
 train:
   # experiment directory path
-  sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
-  exp_dir: /home/argar/apgi/gqvr_sd35/experiments
+  sd_path: /media/agarg54/Extreme SSD/sd3.5_large.safetensors
+  exp_dir: /nobackup1/aryan/weights/sd35_qvae_demosaic
   learning_rate: 1e-5
-  batch_size: 16
-  num_workers: 96
-  train_steps: 1_000_000
-  log_every: 1000
-  ckpt_every: 50000
-  image_every: 5000
-  val_every: 5000
+  batch_size: 1
+  num_workers: 24
+  train_steps: 3_000_000
+  log_every: 500
+  ckpt_every: 10_000
+  image_every: 500
+  val_every: 10_000
   # Loss params
-  loss_mode: "ls_gt_perceptual" # "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
+  loss_mode: "mse_ls_gt_perceptual" # "mse_ls", "ls_only", "ls_gt", "ls_gt_perceptual"
   loss_scales:
-    lsa: 5
-    mse: 0.
-    gt: 1.
-    perceptual_gt: 50.
-    perceptual_lq: 50.
+    lsa: 2.5
+    mse: 10.
+    gt: 5.
+    perceptual: 2.5

@@ -1,0 +1,24 @@
+dataset:
+  val:
+    batch_size: 1
+    num_workers: 16
+    target: core.dataset.spc_image_only.SPCDataset
+    params:
+      file_list: /media/agarg54/Extreme SSD/dataset_txt_files/full_test_set.txt
+      file_backend_cfg:
+        target: core.dataset.file_backend.HardDiskBackend
+      out_size: 512
+      crop_type: "center"
+      use_hflip: False
+      bits: 3
+
+
+batch_transform:
+  target: core.dataset.batch_transform.IdentityBatchTransform
+  # params:
+
+
+
+sd_path: /media/agarg54/Extreme SSD/weights/gqir_sd35/demosaic_3bit/checkpoints/0300000.pt
+exp_dir: /media/agarg54/Extreme SSD/code/gQIR_SD35/eval_qVAE
+color: false
