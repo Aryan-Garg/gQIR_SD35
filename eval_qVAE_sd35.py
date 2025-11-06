@@ -48,7 +48,7 @@ def compute_full_reference_metrics(gt_img, out_img):
 
 import pyiqa
 # from DeQAScore.src import Scorer
-def compute_no_reference_metrics(out_img):
+def compute_no_reference_metrics(out_img, device):
     # center crop to 224x224 for no-reference metrics
     _, _, h, w = out_img.shape
     top = (h - 224) // 2
@@ -56,9 +56,9 @@ def compute_no_reference_metrics(out_img):
     out_img = out_img[:, :, top:top+224, left:left+224]
 
     # ManIQA DeQA MUSIQ ClipIQA
-    maniqa = pyiqa.create_metric('maniqa', device=torch.device("cuda:1"))
-    clipiqa = pyiqa.create_metric('clipiqa', device=torch.device("cuda:1"))
-    musiq = pyiqa.create_metric('musiq', device=torch.device("cuda:1"))
+    maniqa = pyiqa.create_metric('maniqa', device=device)
+    clipiqa = pyiqa.create_metric('clipiqa', device=device)
+    musiq = pyiqa.create_metric('musiq', device=device)
     # deqa = Scorer(model_type='deqa', device=torch.device("cuda:1"))
 
     maniqa_score = maniqa(out_img).item()
@@ -206,6 +206,8 @@ def main(args) -> None:
     vae = SDVAE(device="cpu", dtype=torch.float32)
     vae.load_state_dict(weights, strict=True)
     vae.requires_grad_(False)
+    # print(f"[~] All VAE parameters: {sum(p.numel() for p in vae.parameters()) / 1e6:.2f}M") # 83.82M
+
     vae.to(device)
     print(f"[+] Loaded SD35 qVAE successfully and moved to {device}")
     # Setup data:
@@ -244,9 +246,10 @@ def main(args) -> None:
             rearrange(val_lq, "b h w c -> b c h w").contiguous().float()
         )
         with torch.no_grad():
-            out = vae.decode(vae.encode(val_lq.to(device))).clamp(0,1).float()
+            out = vae.decode(vae.encode(val_lq.to(device))).clamp(-1,1).float()
+            out = (out + 1.) / 2.
         psnr, ssim, lpips = compute_full_reference_metrics(val_gt.to(device), out)
-        maniqa, clipiqa, musiq = compute_no_reference_metrics(out)
+        maniqa, clipiqa, musiq = compute_no_reference_metrics(out, device)
 
         val_ssim.append(ssim)
         val_lpips_loss.append(lpips)

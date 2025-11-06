@@ -5,7 +5,7 @@ dataset:
       file_list: /media/agarg54/Extreme SSD/dataset_files/combined_dataset.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 768
+      out_size: 512
       crop_type: "center"
       use_hflip: False
       bits: 3
@@ -15,7 +15,7 @@ dataset:
       file_list: /media/agarg54/Extreme SSD/dataset_txt_files/full_test_set.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 768
+      out_size: 512
       crop_type: "center"
       use_hflip: False
       bits: 3
@@ -28,13 +28,14 @@ batch_transform:
 train:
   # experiment directory path
   sd_path: /media/agarg54/Extreme SSD/sd3.5_large.safetensors
+  resume_from: /nobackup1/aryan/weights/sd35_qvae_demosaic/checkpoints/0070000.pt
   exp_dir: /nobackup1/aryan/weights/sd35_qvae_demosaic
   learning_rate: 1e-5
   batch_size: 1
   num_workers: 24
   train_steps: 3_000_000
   log_every: 500
-  ckpt_every: 10_000
+  ckpt_every: 25_000
   image_every: 500
   val_every: 10_000
   # Loss params

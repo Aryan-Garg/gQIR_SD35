@@ -2,7 +2,7 @@ dataset:
   val:
     batch_size: 1
     num_workers: 16
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /media/agarg54/Extreme SSD/dataset_txt_files/full_test_set.txt
       file_backend_cfg:
@@ -15,10 +15,7 @@ dataset:
 
 batch_transform:
   target: core.dataset.batch_transform.IdentityBatchTransform
-  # params:
 
-
-
-sd_path: /nobackup1/aryan/weights/sd35_qvae_demosaic/checkpoints/0150000.pt
-exp_dir: /nobackup1/aryan/results/sd35/eval_s1_mono
-color: false
+sd_path: /nobackup1/aryan/weights/sd35_qvae_mosaic/checkpoints/0150000.pt
+exp_dir: /nobackup1/aryan/results/sd35/eval_s1_color
+color: true

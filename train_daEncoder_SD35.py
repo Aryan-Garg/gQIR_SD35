@@ -174,12 +174,22 @@ def main(args) -> None:
     # Create & load VAE from pretrained SD 3.5 model:
     MODEL = cfg.train.sd_path
     with safe_open(MODEL, framework="pt", device="cpu") as f:
+        frozen_vae = SDVAE(device="cpu", dtype=torch.float32)
         vae = SDVAE(device="cpu", dtype=torch.float32)
+
         prefix = ""
         if any(k.startswith("first_stage_model.") for k in f.keys()):
             prefix = "first_stage_model."
-        load_into(f, vae, prefix, "cpu", torch.float32)
 
+        load_into(f, frozen_vae, prefix, "cpu", torch.float32)
+        if cfg.train.resume_from:
+            weights = torch.load(cfg.train.resume_from, map_location="cpu")
+            vae.load_state_dict(weights, strict=True)
+            print(f"[+] Loaded VAE from {cfg.train.resume_from}")
+        else:
+            load_into(f, vae, prefix, "cpu", torch.float32)
+
+    frozen_vae.requires_grad_(False)
 
     # Make the encoder & quant_conv trainable and rest frozen
     for name, p in vae.named_parameters():
@@ -219,6 +229,7 @@ def main(args) -> None:
 
     # Prepare models for training/inference:
     vae.to(device)
+    frozen_vae.to(device)
     vae.encoder, opt, loader, val_loader = accelerator.prepare(
         vae.encoder, opt, loader, val_loader
     )
@@ -267,8 +278,8 @@ def main(args) -> None:
 
             # Train step:
             with torch.no_grad():
-                gt_latent = vae.encode(gt).float()
-                xhat_gt = vae.decode(gt_latent).clamp(-1,1).float()
+                gt_latent = frozen_vae.encode(gt).float()
+                xhat_gt = frozen_vae.decode(gt_latent).clamp(-1,1).float()
 
             pred_latent = vae.encode(lq).float()
             # print("[+] gt latent.shape:", gt_latent.size())
@@ -349,8 +360,8 @@ def main(args) -> None:
                 N = 12
                 log_gt, log_lq = gt[:N], lq[:N]
                 with torch.no_grad():
-                    log_pred = vae.decode(vae.encode(log_lq)).clamp(-1,1)
-                    log_pred_gt = vae.decode(vae.encode(log_gt)).clamp(-1,1)
+                    log_pred = vae.decode(vae.encode(log_lq)).clamp(-1,1).float()
+                    log_pred_gt = frozen_vae.decode(frozen_vae.encode(log_gt)).clamp(-1,1).float()
                 if accelerator.is_local_main_process:
                     for tag, image in [
                         ("image/pred_gt", (log_pred_gt+1.) / 2.),
@@ -390,16 +401,15 @@ def main(args) -> None:
                         rearrange(val_lq, "b h w c -> b c h w").contiguous().float()
                     )
                     with torch.no_grad():
-
                         lq_z = vae.encode(val_lq).float()
-                        gt_z = vae.encode(val_gt).float()
-                        xhat_lq = vae.decode(lq_z).clamp(0,1).float()
-                        xhat_gt = vae.decode(gt_z).clamp(0,1).float()
+                        gt_z = frozen_vae.encode(val_gt).float()
+                        xhat_lq = vae.decode(lq_z).clamp(-1,1).float()
+                        xhat_gt = frozen_vae.decode(gt_z).clamp(-1,1).float()
                         vloss, vloss_dict = compute_loss(val_gt, gt_z, lq_z, xhat_lq, xhat_gt,
                                            lpips_model, cfg.train.loss_mode, cfg.train.loss_scales)
 
                         val_psnr.append(
-                            calculate_psnr_pt(xhat_lq, val_gt, crop_border=0)
+                            calculate_psnr_pt((xhat_lq+1.) / 2., (val_gt+1.) / 2., crop_border=0)
                             .mean()
                             .item()
                         )
