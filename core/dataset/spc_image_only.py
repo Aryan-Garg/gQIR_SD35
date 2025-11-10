@@ -107,32 +107,7 @@ class SPCDataset(data.Dataset):
                 print(f"Could not load: {gt_path}, setting a random index")
                 index = random.randint(0, len(self) - 1)
                 continue
-            # BUG: Color channels: BGR2RGB errs
-            # if "xvfi" in gt_path:
-            #     path_elements = img_path.split("/")
-            #     lq_path = f"{path_elements[0]}/{path_elements[1]}/spc/{path_elements[2]}_{path_elements[3]}_{path_elements[4]}/{path_elements[5]}"
-            #     lq_path = self.HARDDISK_DIR + lq_path[2:]
-            #     # print("[+] XVFI lq path:", lq_path)
-            #     img_lq = self.load_gt_image(lq_path)
-            # elif "i2_2000fps" in gt_path:
-            #     lq_path = gt_path.replace("extracted", "spc")
-            #     # img_lq = self.load_gt_image(lq_path)
-            #     # img_lq = cv2.cvtColor(img_lq, cv2.COLOR_BGR2RGB)
-            # elif "visionsim" in gt_path:
-            #     if "frames_1x" in gt_path:
-            #         lq_path = gt_path.replace("frames_1x/frames", "spc_frames_1x")
-            #         # print("[+] visionsim lq path:", lq_path)
-            #     elif "frames_4x" in gt_path:
-            #         lq_path = gt_path.replace("frames_4x/frames", "spc_frames_4x")
-            #         # print("[+] visionsim lq path:", lq_path)
-            #     elif "frames_32x" in gt_path:
-            #         lq_path = gt_path.replace("frames_32x/frames", "spc_frames_32x")
-            #     img_lq = self.load_gt_image(lq_path)
-            #     img_lq = cv2.cvtColor(img_lq, cv2.COLOR_BGR2RGB)
-            # else:
-            #     # This is DIV2K, FFHQ, LHQ, REDS, UDM10, SPMC, FLICKR2K or LAION-170M dataset
-            #     img_lq = self.generate_spc_from_gt(img_gt)
-            
+
             if img_gt is None:
                 print(f"failed to load {gt_path} or generate lq image, try another image")
                 index = random.randint(0, len(self) - 1)

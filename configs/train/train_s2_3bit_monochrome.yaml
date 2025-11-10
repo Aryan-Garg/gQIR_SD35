@@ -2,20 +2,20 @@ dataset:
   train:
     target: core.dataset.spc_image_only.SPCDataset
     params:
-      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/combined_dataset.txt
+      file_list: /media/agarg54/Extreme SSD/dataset_files/combined_dataset.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 512
+      out_size: 256
       crop_type: "center"
       use_hflip: False
       bits: 3
   val:
     target: core.dataset.spc_image_only.SPCDataset
     params:
-      file_list: /mnt/disks/behemoth/datasets/dataset_txt_files/random_val.txt
+      file_list: /media/agarg54/Extreme SSD/dataset_txt_files/full_test_set.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 512
+      out_size: 256
       crop_type: "center"
       use_hflip: False
       bits: 3
@@ -30,6 +30,7 @@ train:
   sd_path: /home/argar/apgi/gqvr_sd35/pretrained_ckpt/sd3.5_large.safetensors
   exp_dir: /home/argar/apgi/gqvr_sd35/experiments/DiT_Stage2/s2_demosaic_3bit_5k
   vae_path: /home/argar/apgi/gqvr_sd35/experiments/VAEs_Stage1/demoisac_3bit/checkpoints/0300000.pt
+  textenc_dir: /media/agarg54/Extreme SSD/sd35_pretrained
   ##########################
   # TODO:
   ##########################

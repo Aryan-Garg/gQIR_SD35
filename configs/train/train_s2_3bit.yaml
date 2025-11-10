@@ -1,21 +1,21 @@
 dataset:
   train:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /media/agarg54/Extreme SSD/dataset_files/combined_dataset.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 256
+      out_size: 512
       crop_type: "center"
       use_hflip: False
       bits: 3
   val:
-    target: core.dataset.spc_image_only.SPCDataset
+    target: core.dataset.spc_image_mosaic.SPCDataset_Mosaic
     params:
       file_list: /media/agarg54/Extreme SSD/dataset_txt_files/full_test_set.txt
       file_backend_cfg:
         target: core.dataset.file_backend.HardDiskBackend
-      out_size: 256
+      out_size: 512
       crop_type: "center"
       use_hflip: False
       bits: 3
@@ -28,13 +28,14 @@ batch_transform:
 train:
   # experiment directory path
   sd_path: /media/agarg54/Extreme SSD/sd3.5_large.safetensors
-  exp_dir: /home/argar/apgi/gqvr_sd35/experiments/DiT_Stage2/s2_demosaic
-  vae_path: /media/agarg54/Extreme SSD/weights/gqir_sd35/demosaic_3bit/checkpoints/0300000.pt
+  exp_dir: /nobackup1/aryan/weights/sd35_s2_mosaic
+  vae_path: /nobackup1/aryan/weights/sd35_qvae_mosaic/checkpoints/0150000.pt
+  textenc_dir: /media/agarg54/Extreme SSD/sd35_pretrained
   ##########################
   # TODO:
   ##########################
-  lora_rank: 64
-  lora_modules: ["x_embedder.proj", "context_block.attn.qkv", "context_block.attn.proj", "x_block.attn.qkv", "x_block.attn.proj", "ff.net.0.proj", "ff.net.2", "final_layer.linear"]
+  lora_rank: 8
+  lora_modules: ["x_embedder.proj", "t_embedder.mlp.0", "t_embedder.mlp.2", "y_embedder.mlp.0", "y_embedder.mlp.2","context_embedder","context_block.attn.qkv", "context_block.attn.proj","x_block.attn.qkv",  "x_block.attn.proj", "context_block.mlp.fc1", "context_block.mlp.fc2",  "x_block.mlp.fc1",  "x_block.mlp.fc2",  "final_layer.linear"]
   ###########################
 
   learning_rate: 1e-5
@@ -42,15 +43,16 @@ train:
   
   num_workers: 24
   
-  train_steps: 200_000
+  train_steps: 100_000
   
   log_every: 500
-  ckpt_every: 5000
-  image_every: 5000
-  val_every: 5000
+  ckpt_every: 1000
+  image_every: 500
+  val_every: 1000
   
   # Loss params
   loss_scales:
     lambda_gan: 0.5
     lambda_lpips: 5
     lambda_l2: 1
+
