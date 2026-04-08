@@ -1,17 +1,21 @@
-## Quanta SD 3.5 Large
+# [CVPR 2026] gQIR: Generative Quanta Image Reconstruction (SD3.5 VAE)
 
-### Stage 1:
+![Static Badge](https://img.shields.io/badge/🐧-project_page-green?link=https%3A%2F%2Faryan-garg.github.io%2Fgqir)
+[![arXiv](https://img.shields.io/badge/arXiv-2602.20417-b31b1b.svg)](https://arxiv.org/abs/2602.20417) [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-yellow)](https://huggingface.co/spaces/aRy4n/gQIR)
 
-> accelerate launch train_daEncoder_SD35.py --config configs/train/train_daEncoder.yaml
+[Aryan Garg](https://aryan-garg.github.io/)<sup>1</sup>, [Sizhuo Ma](https://sizhuoma.netlify.app/)<sup>2</sup>, [Mohit Gupta](https://wisionlab.com/people/mohit-gupta/)<sup>1</sup>
 
-**Mosaic versions:**
+<sup>1</sup> University of Wisconsin-Madison<br><sup>2</sup> Snap, Inc<br>
 
-> accelerate launch train_daEncoder_SD35.py --config configs/train/train_s1_mosaic_default_3bit.yaml
-> accelerate launch --main_process_port 29501 train_daEncoder_SD35.py --config configs/train/train_stage1_1-bit_mosaic.yaml
+## <a id="Cite"></a>Citation
+Please cite our work if you find it useful. Thanks! :)
 
-### Stage 2:
-
-**Add more adapters (less R for LoRA)**
-
->  CUDA_VISIBLE_DEVICES=3 python3 train_s2_SD35.py --config configs/train/train_s2_3bit.yaml
->  CUDA_VISIBLE_DEVICES=4 python3 train_s2_SD35.py --config configs/train/train_s2_3bit_monochrome.yaml
+```bibtex
+@InProceedings{garg_2026_gqir,
+    author    = {Garg, Aryan and Ma, Sizhuo and  Gupta, Mohit},
+    title     = {gQIR: Generative Quanta Image Reconstruction},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month     = {June},
+    year      = {2026},
+}
+```
