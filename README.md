@@ -7,6 +7,8 @@
 
 <sup>1</sup> University of Wisconsin-Madison<br><sup>2</sup> Snap, Inc<br>
 
+### Weights can be downloaded [here](https://huggingface.co/aRy4n/gQIR/tree/main/sd35_vae).
+
 ## <a id="Cite"></a>Citation
 Please cite our work if you find it useful. Thanks! :)
 
